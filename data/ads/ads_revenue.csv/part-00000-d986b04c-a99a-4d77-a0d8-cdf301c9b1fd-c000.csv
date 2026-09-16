@@ -1,0 +1,5 @@
+facility_type_name,orders,recorded_orders,estimated_orders,recorded_fees,estimated_fees
+其他类型,107,42,65,40.82,876.92
+交直流一体充电桩,1801,219,1582,230.31,16122.15
+交流充电桩,589,21,568,20.99,5365.27
+直流充电桩,843,96,747,106.73,7347.16

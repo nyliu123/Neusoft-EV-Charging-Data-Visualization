@@ -1,0 +1,5 @@
+facility_type_name,total_count,total_kwh,avg_kwh,total_charging_fees,avg_charging_fees,avg_chargeTimeHrs
+交直流一体充电桩,1801,10703.24,5.94,230.31,0.13,2.93
+直流充电桩,843,4829.75,5.73,106.73,0.13,2.9
+其他类型,107,779.44,7.28,40.82,0.38,3.68
+交流充电桩,589,3411.26,5.79,20.99,0.04,2.47
