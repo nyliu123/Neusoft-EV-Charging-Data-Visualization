@@ -20,24 +20,35 @@
 - 时长模型目前是探索性对照：历史训练用的 `kwhTotal` 按 `data/explanation/nvv2t_explained.csv` 是本次实际电量，不能视为充电前的计划量；`data/explanation/dsv13r2_explained.csv` 把 `esd` 定义为设备标识，而 `sessionId` 是会话 ID，当前数值拼接的 1575 条电池状态没有业务映射证明。1576 条数值重合记录的 `record_time` 均等于订单创建时间去秒，无法独立证明采样先后。21 维正则化 XGBoost 在 3339 条有效时长样本的时间留出测试上 MAE 0.67 小时、R² 0.326；去掉实际电量及其派生量、仍保留探索性电池数值拼接的离线对照 R² 0.199，而只用充电前订单字段的对照 R² 0.186。电池原说明将“可用能量”标为 kW，其量纲不宜直接当成 kWh。获得设备到会话的映射、充电前计划电量或目标 SOC、额定功率后，才可进行可靠的充电前预测验证。
 - 数据质量从原始订单、站点、电池记录与清洗后跨表关联分别统计：首页展示 12 项跨域摘要，质量详情展示 33 项指标及各自分母和清洗口径。
 
-## 启动
+## 快速开始
 
-首先进入项目自带的 `venv` 环境：
+首先创建新的 `venv` 环境：
 
 ```powershell
 cd Neusoft-EV-Charging-Data-Visualization
-.\.venv\Scripts\activate
+python -m venv .venv
 ```
 
-然后确认本地 MySQL 的 `car_data` 数据库可用，随后再运行清洗与分析：
+然后进入该环境并安装全部依赖：
 
 ```powershell
+.\.venv\Scripts\activate
+cd flask_project
+pip install -r requirements.txt
+```
+
+## 启动
+
+先确认本地 MySQL 的 `car_data` 数据库可用，再运行清洗与分析：
+
+```powershell
+cd Neusoft-EV-Charging-Data-Visualization
 python cleanData.py
 ```
 
 脚本写入 `dwd_orders`、`dwd_stations`、`dwd_battery`；`ads_analysis.py` 统一生成 `ads_facility`、`ads_monthly`、`ads_hourly`、`ads_station`、`ads_user`、`ads_revenue`、`ads_battery`、`ads_quality`，对应的 CSV 目录使用同名。
 
-先启动后端：
+启动后端：
 
 ```powershell
 cd flask_project
