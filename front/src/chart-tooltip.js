@@ -2,9 +2,10 @@
 export const chartTooltip = (overrides = {}) => ({
   trigger: 'item',
   renderMode: 'html',
-  // 提示框挂到 body 并限制在图表视口内，避免被卡片或画布的 overflow 裁掉。
+  // 提示框挂到 body，避免被卡片和画布的 overflow 裁掉。
   appendTo: 'body',
-  confine: true,
+  // 不能用 confine：它把提示框限制在画布尺寸内，小画布下提示框会被顶到图表边缘、脱离光标。
+  confine: false,
   backgroundColor: '#142f48',
   borderColor: '#62c9ec',
   borderWidth: 1,

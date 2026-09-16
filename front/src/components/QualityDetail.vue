@@ -38,7 +38,6 @@ const columns = computed(() => {
     <section class="detail-panel quality-rules">
       <h2>清洗规则与指标口径</h2>
       <ul class="detail-rules"><li v-for="note in data.quality.notes" :key="note">{{ note }}</li></ul>
-      <p class="method-note">数据覆盖 {{ data.meta.dateRange }}；各异常维度可能重叠，不能直接相加。</p>
     </section>
   </div>
 </template>

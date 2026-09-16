@@ -88,7 +88,7 @@ def save_analyses(spark):
             frame.show()
         save_table(frame, table, csv_path)
 
-    # 分析8（数据质量）：设备 esd 与会话 sessionId 只审计数值重合，不能当作已验证的关联。
+    # 分析8（数据质量）：统计电池记录与订单的重合情况。
     quality = spark.sql("""
         WITH order_checks AS (
             SELECT COUNT(*) AS raw_orders,

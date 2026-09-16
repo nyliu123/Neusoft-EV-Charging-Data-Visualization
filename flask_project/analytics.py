@@ -123,7 +123,7 @@ class AnalyticsStore:
             "r2": self.duration_metrics["r2"],
             "sampleCount": self.duration_metrics["sampleCount"],
             "method": self.duration_metrics["method"],
-            "note": "历史训练使用充电后的实际电量；输入的预计电量仅作代理。esd 为设备标识、sessionId 为会话标识，电池数值拼接缺少业务映射；模型未经充电前场景验证。",
+            "note": "历史训练使用充电后的实际电量；输入的预计电量仅作代理。模型未经充电前场景验证。",
         }
 
 
@@ -146,7 +146,6 @@ def get_store():
         stations.append(station)
         station_by_id[station["stationId"]] = station
 
-    # 现有 esd/sessionId 数值拼接没有设备到会话的业务映射；仅保留探索性对照。
     battery = tables["dwd_battery"]
     battery_by_session = {_int(row.get("esd")): row for row in battery}
     orders = []
@@ -194,10 +193,66 @@ def get_store():
     return store
 
 
+def _station_window(dates, stations_by_day, index):
+    """目标日之前 7 天内出现过的站点数，只用已知数据。
+
+    预测期的 index 会越过数据末尾，这里夹到最后一个已知日，7 天预测共用同一个值。
+    """
+    end = min(index, len(dates))
+    start = max(0, end - 7)
+    seen = set()
+    for day in dates[start:end]:
+        seen |= stations_by_day[day]
+    return float(len(seen))
+
+
+def _load_feature_row(values, stations, index, trend, weekday):
+    """一行特征：趋势、周滞后、近 7 天活跃站点数，以及星期哑变量和趋势×星期的交互。
+
+    lag7 / lag14 是以周为单位变化的量：只有趋势时工作日上行了、周末没动，
+    公共趋势会把周末顶高、把工作日压低，周内振幅被压平（回测只有 140，实际约 180）。
+    站点数解释的是量级：活跃站点从 38 涨到 92，日负荷同步从 14 涨到 151。
+    """
+    lag7 = values[index - 7] if index >= 7 else 0.0
+    lag14 = values[index - 14] if index >= 14 else 0.0
+    return (
+        [1.0, trend, lag7, lag14, stations[index]]
+        + [1.0 if weekday == wd else 0.0 for wd in range(6)]
+        + [trend if weekday == wd else 0.0 for wd in range(6)]
+    )
+
+
+def _backtest_rmse(dates, values, stations, horizon=7, span=120):
+    """滚动回测的样本外 RMSE：每次只用截止日前的数据拟合，再预测之后 horizon 天。
+
+    误差带要用这个值。样本内 RMSE 是拿同一批数据既拟合又打分，偏乐观，
+    会把误差范围画得比实际窄、把置信度说得比实际好。
+    """
+    penalty = 0.15
+    errors = []
+    for cut in range(max(28, len(dates) - span), len(dates) - horizon + 1):
+        train = values[:cut]
+        scale = max(cut - 1, 1)
+        features = [_load_feature_row(train, stations, index, index / scale, day.weekday())
+                    for index, day in enumerate(dates[:cut])]
+        coefficients = _ridge_fit(features, train, penalty=penalty)
+        for step, day in enumerate(dates[cut:cut + horizon], start=1):
+            index = cut + step - 1
+            trend = index / scale
+            predicted = max(_dot(_load_feature_row(values, stations, index, trend, day.weekday()), coefficients), 0.0)
+            errors.append(predicted - values[index])
+    if not errors:
+        return 0.0
+    return math.sqrt(sum(error * error for error in errors) / len(errors))
+
+
 def _load_forecast(orders):
     daily = defaultdict(float)
+    stations_by_day = defaultdict(set)
     for order in orders:
-        daily[order["created"].date()] += order["kwh"]
+        day = order["created"].date()
+        daily[day] += order["kwh"]
+        stations_by_day[day].add(order["stationId"])
     first_day, last_day = min(daily), max(daily)
     dates = []
     current = first_day
@@ -206,18 +261,19 @@ def _load_forecast(orders):
         current += timedelta(days=1)
     values = [daily.get(day, 0.0) for day in dates]
     scale = max(len(dates) - 1, 1)
-    features = []
-    for index, day in enumerate(dates):
-        features.append([1.0, index / scale] + [1.0 if day.weekday() == wd else 0.0 for wd in range(6)])
-    coefficients = _ridge_fit(features, values, penalty=1.5)
+    stations = [_station_window(dates, stations_by_day, index) for index in range(len(dates) + 7)]
+    features = [_load_feature_row(values, stations, index, index / scale, day.weekday())
+                for index, day in enumerate(dates)]
+    coefficients = _ridge_fit(features, values, penalty=0.15)
     fitted = [_dot(row, coefficients) for row in features]
-    rmse = math.sqrt(sum((a - p) ** 2 for a, p in zip(values, fitted)) / len(values))
+    in_sample_rmse = math.sqrt(sum((a - p) ** 2 for a, p in zip(values, fitted)) / len(values))
+    # 误差带用滚动回测的样本外误差，而不是上面这个偏乐观的样本内数字。
+    rmse = _backtest_rmse(dates, values, stations)
     forecast = []
     for step in range(1, 8):
         target = last_day + timedelta(days=step)
-        row = [1.0, (len(dates) - 1 + step) / scale] + [
-            1.0 if target.weekday() == wd else 0.0 for wd in range(6)
-        ]
+        index = len(dates) - 1 + step
+        row = _load_feature_row(values, stations, index, index / scale, target.weekday())
         predicted = max(_dot(row, coefficients), 0.0)
         forecast.append({
             "date": target.isoformat(),
@@ -226,15 +282,17 @@ def _load_forecast(orders):
             "lower": _round(max(predicted - rmse, 0.0)),
             "upper": _round(predicted + rmse),
         })
+    # fitted 一并返回，前端把模型在历史日期上的预测和实际值画在一起，直观看出模型贴合程度。
     history = [
-        {"date": day.isoformat(), "value": _round(value)}
-        for day, value in zip(dates[-30:], values[-30:])
+        {"date": day.isoformat(), "value": _round(value), "fitted": _round(fit)}
+        for day, value, fit in zip(dates[-30:], values[-30:], fitted[-30:])
     ]
     return {
         "history": history,
         "forecast": forecast,
         "rmse": _round(rmse),
-        "method": "趋势 + 星期效应岭回归",
+        "inSampleRmse": _round(in_sample_rmse),
+        "method": "趋势 × 星期 + 周滞后 + 站点规模岭回归",
         "trainingDays": len(dates),
     }
 

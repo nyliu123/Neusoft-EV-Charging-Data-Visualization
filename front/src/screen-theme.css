@@ -118,17 +118,17 @@ body { background: radial-gradient(circle at 50% -18%, #1c3659 0, #0b1e35 35%, #
 .detail-header nav a.active { background: #17618b; border-color: #3bbde6; }
 .detail-summary span, .detail-summary article small, .detail-panel p, .detail-panel td { color: #c2d8e9; }
 .detail-summary b { color: #68d8f2; } .detail-panel th { color: #d4e7f2; background: #1d3b5b; } .detail-panel td, .detail-panel th { border-color: #305170; }
-.detail-caveat { color: #d5ddec; background: #2c3155; border-color: #555d87; }
 .back-link { color: #78e0f6; }
 .detail-panel .method-note { color: #f4faff; background: #21415f; border: 1px solid #5685a9; }
 .detail-rules { color: #e2eef9; }
 .detail-rules li::marker { color: #9ed9f1; }
 /* 24 小时明细卡采用图表悬浮标签的深蓝底与亮蓝描边。 */
-.detail-shell .hour-grid div { background: #142f48; border: 1px solid #62c9ec; border-radius: 6px; }
+.detail-shell .hour-grid > div { background: #142f48; border: 1px solid #62c9ec; border-radius: 6px; }
 .detail-shell .hour-grid b { color: #f2f8ff; }
+.detail-shell .hour-grid strong { color: #6de0f5; }
 .detail-shell .hour-grid span, .detail-shell .hour-grid small { color: #c5e3f1; }
 /* 两个详情页按自身内容重新铺排；质量长短表平衡成两列，预测六项评估占同一行。 */
-.detail-shell--dense { width: 100%; max-width: none; padding: 14px 16px 20px; }
+.detail-shell--dense { padding: 14px 20px 20px; }
 .detail-shell--dense .detail-header { margin-bottom: 10px; }
 .detail-shell--dense .detail-summary { margin-bottom: 8px; gap: 8px; }
 .detail-shell--dense .detail-summary article { min-width: 0; min-height: 86px; padding: 12px 14px; }

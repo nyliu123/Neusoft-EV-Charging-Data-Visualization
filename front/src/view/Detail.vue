@@ -33,7 +33,7 @@ onMounted(async () => {
 <template>
   <main class="detail-shell" :class="{ 'detail-shell--dense': active.key === 'quality' || active.key === 'prediction', 'detail-shell--prediction': active.key === 'prediction' }">
     <header class="detail-header">
-      <div><router-link to="/" class="back-link">← 返回大屏</router-link><h1>{{ active.label }}</h1><p>东软汽车充电桩数据分析可视化大屏的指标详情</p></div>
+      <div><router-link :to="active.key === 'prediction' ? { path: '/', hash: '#bottom' } : '/'" class="back-link">← 返回大屏</router-link><h1>{{ active.label }}</h1><p>东软汽车充电桩数据分析可视化大屏的指标详情</p></div>
       <nav><router-link v-for="section in sections" :key="section.key" :to="`/details/${section.key}`" :class="{ active: active.key === section.key }">{{ section.label }}</router-link></nav>
     </header>
     <div v-if="error" class="detail-error">数据加载失败：{{ error }}</div>
@@ -46,11 +46,14 @@ onMounted(async () => {
         <article><span>服务用户</span><b>{{ data.kpis.users }}</b></article>
         <article><span>平均时长</span><b>{{ data.kpis.avgDuration }} 小时</b></article>
       </div>
-      <div class="detail-columns">
+      <div class="detail-columns detail-columns--fill">
         <section class="detail-panel"><h2>月度趋势明细</h2><div class="table-scroll"><table><thead><tr><th>月份</th><th>订单数</th><th>充电量 kWh</th></tr></thead><tbody><tr v-for="item in data.monthly" :key="item.month"><td>{{ item.month }}</td><td>{{ fmt(item.orders) }}</td><td>{{ fmt(item.kwh, 2) }}</td></tr></tbody></table></div></section>
-        <section class="detail-panel"><h2>充电桩类型明细</h2><table><thead><tr><th>桩型</th><th>订单</th><th>电量 kWh</th><th>平均时长</th></tr></thead><tbody><tr v-for="item in data.facility" :key="item.name"><td>{{ item.name }}</td><td>{{ fmt(item.orders) }}</td><td>{{ fmt(item.kwh, 2) }}</td><td>{{ item.avgDuration }} 小时</td></tr></tbody></table><h2 class="detail-subhead">订单来源平台（非用户偏好）</h2><table><thead><tr><th>平台</th><th>订单数</th><th>订单占比</th></tr></thead><tbody><tr v-for="item in data.platform" :key="item.name"><td>{{ item.name }}</td><td>{{ item.value }}</td><td>{{ (item.value / data.kpis.orders * 100).toFixed(1) }}%</td></tr></tbody></table></section>
+        <div class="detail-column">
+          <section class="detail-panel"><h2>充电桩类型明细</h2><table><thead><tr><th>桩型</th><th>订单</th><th>电量 kWh</th><th>平均时长</th></tr></thead><tbody><tr v-for="item in data.facility" :key="item.name"><td>{{ item.name }}</td><td>{{ fmt(item.orders) }}</td><td>{{ fmt(item.kwh, 2) }}</td><td>{{ item.avgDuration }} 小时</td></tr></tbody></table></section>
+          <section class="detail-panel"><h2>订单来源平台（非用户偏好）</h2><table><thead><tr><th>平台</th><th>订单数</th><th>订单占比</th></tr></thead><tbody><tr v-for="item in data.platform" :key="item.name"><td>{{ item.name }}</td><td>{{ item.value }}</td><td>{{ (item.value / data.kpis.orders * 100).toFixed(1) }}%</td></tr></tbody></table></section>
+        </div>
       </div>
-      <section class="detail-panel"><h2>24 小时订单与电量明细</h2><div class="hour-grid"><div v-for="item in data.hourly" :key="item.hour"><b>{{ item.hour }}</b><span>{{ item.orders }} 单</span><small>{{ fmt(item.kwh, 1) }} kWh</small></div></div></section>
+      <section class="detail-panel"><h2>24 小时订单与电量明细</h2><div class="hour-grid"><div v-for="item in data.hourly" :key="item.hour"><div class="hour-slot"><b>{{ item.hour }}</b><span>{{ item.orders }} 单</span></div><div class="hour-kwh"><strong>{{ fmt(item.kwh, 1) }}</strong><small>kWh</small></div></div></div></section>
     </template>
 
     <template v-else-if="active.key === 'stations'">

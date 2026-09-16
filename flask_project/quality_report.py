@@ -46,7 +46,7 @@ def build_quality_report(row):
         {"title": "电池与关联", "metrics": [
             metric("rawBattery", "原始电池记录", "raw_battery", unit="条"),
             metric("validBattery", "有效电池记录", "valid_battery", "raw_battery", unit="条", note="SOC 合理且电压为正"),
-            metric("matchedBattery", "设备与会话标识数值重合", "matched_battery_sessions", "valid_orders", note="esd 为设备标识、sessionId 为会话标识；缺少映射，数值重合不代表实际关联"),
+            metric("matchedBattery", "电池与会话数值重合", "matched_battery_sessions", "valid_orders"),
             metric("invalidSoc", "SOC 异常", "invalid_soc", "raw_battery", unit="条"),
             metric("invalidPackVoltage", "电池包电压异常", "invalid_pack_voltage", "raw_battery", unit="条"),
             metric("invalidCurrent", "充电电流异常", "invalid_charge_current", "raw_battery", unit="条", note="不在 -200–0 A"),
@@ -81,7 +81,6 @@ def build_quality_report(row):
             "订单年份 0014/0015 按数据语义校正为 2014/2015。",
             "有效订单要求正电量且起止小时在 0–23 时；时长异常单独统计，不一定剔除订单。",
             "电池仅对 SOC 与包电压做整行过滤；电流、温度和可用能量异常置为空值。",
-            "esd 与 sessionId 分属设备和会话标识；当前只统计数值重合，不能作为跨表关联覆盖率。",
             "站点名称为空的记录被过滤；地址及设备数异常保留站点但对应清洗字段为空或补默认值。",
             "零费用订单按分时规则估算，原始费用与估算费用分别列示。",
             "异常维度可能在同一记录上重叠，不能把异常数量直接相加。",

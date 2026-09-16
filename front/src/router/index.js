@@ -22,7 +22,13 @@ const router = createRouter({
             path:'/:pathMatch(.*)*',
             redirect:'/'
         }
-    ]
+    ],
+    // #bottom 要等大屏数据渲染完高度才准，交给 Dashboard 自己滚；其余情况保持浏览器默认行为。
+    scrollBehavior(to, from, savedPosition) {
+        if (to.hash === '#bottom') return false
+        if (to.hash) return { el: to.hash, behavior: 'smooth' }
+        return savedPosition
+    }
 })
 
 export default router;

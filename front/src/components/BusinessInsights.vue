@@ -13,13 +13,16 @@ const axis = { axisLine: { lineStyle: { color: '#53708e' } }, axisTick: { show: 
 
 const frequencyOption = computed(() => ({
   color: ['#40305f', '#685197', '#9873dc', '#c9adff'],
-  tooltip: { ...tooltip, formatter: item => `${item.name}<br/>${item.data?.originalValue ?? item.value} 位用户` },
+  // 层次图不再用悬停标签，完整信息由点击后的放大卡片承担。
+  tooltip: { ...tooltip, show: false, formatter: item => `${item.name}<br/>${item.data?.originalValue ?? item.value} 位用户` },
   series: [{
     type: 'treemap', roam: false, nodeClick: false, breadcrumb: { show: false },
+    // 根节点（depth 0）只做布局容器：不画底色，也不参与悬停高亮等任何交互。
+    levels: [{ itemStyle: { color: 'transparent', borderColor: 'transparent' }, emphasis: { disabled: true } }],
     data: user.value.frequencySegments.map((item, index) => ({
       ...item, itemStyle: { color: ['#40305f', '#685197', '#9873dc', '#c9adff'][index] },
     })),
-    label: { show: true, formatter: item => item.value < 15 ? `${item.value} 人` : `${item.name}\n${item.value} 人`, fontSize: 12 },
+    label: { show: true, formatter: item => item.name, fontSize: 12 },
     itemStyle: { borderColor: '#102b48', borderWidth: 3, gapWidth: 3 },
   }],
 }))
@@ -72,14 +75,17 @@ const revenueOption = computed(() => ({
 }))
 
 const revenueSourceOption = computed(() => ({
-  tooltip: { ...tooltip, formatter: item => `${item.name}<br/>原始记录 ${item.data.recordedAmount.toFixed(2)} 元<br/>规则估算 ${item.data.estimatedAmount.toFixed(2)} 元<br/>合计 ${Number(item.data?.originalValue ?? item.value).toFixed(2)} 元` },
+  // 层次图不再用悬停标签，完整信息由点击后的放大卡片承担。
+  tooltip: { ...tooltip, show: false, formatter: item => `${item.name}<br/>原始记录 ${item.data.recordedAmount.toFixed(2)} 元<br/>规则估算 ${item.data.estimatedAmount.toFixed(2)} 元<br/>合计 ${Number(item.data?.originalValue ?? item.value).toFixed(2)} 元` },
   series: [{
     type: 'treemap', roam: false, nodeClick: false, breadcrumb: { show: false },
+    // 根节点（depth 0）只做布局容器：不画底色，也不参与悬停高亮等任何交互。
+    levels: [{ itemStyle: { color: 'transparent', borderColor: 'transparent' }, emphasis: { disabled: true } }],
     data: revenue.value.facility.map((item, index) => ({
       name: item.name, value: item.combinedAmount, recordedAmount: item.amount, estimatedAmount: item.estimatedAmount,
       itemStyle: { color: ['#c8793d', '#dfa04c', '#e9b967', '#f3d088'][index] },
     })),
-    label: { show: true, formatter: item => `${item.name}\n${Number(item.data?.originalValue ?? item.value).toFixed(2)} 元`, color: '#172c3c', fontSize: 11, fontWeight: 700 },
+    label: { show: true, formatter: item => item.name, color: '#172c3c', fontSize: 11, fontWeight: 700 },
     itemStyle: { borderColor: '#102b48', borderWidth: 3, gapWidth: 3 },
   }],
 }))

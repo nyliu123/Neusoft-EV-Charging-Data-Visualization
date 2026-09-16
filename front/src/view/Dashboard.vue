@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import ChartCard from '../components/ChartCard.vue'
 import HeatmapLegend from '../components/HeatmapLegend.vue'
 import BusinessInsights from '../components/BusinessInsights.vue'
@@ -14,7 +15,18 @@ const errorMessage = ref('')
 const dashboard = ref(null)
 const now = ref(new Date())
 const heatmapFocus = ref(null)
+const route = useRoute()
 let clockTimer
+const scrollTimers = []
+
+// 图表初始化后页面还会长高，一次滚动到不了底；隔一小段时间补几次，最终停在底部。
+const scrollToBottom = () => {
+  const move = () => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: 'smooth' })
+  scrollTimers.forEach(window.clearTimeout)
+  scrollTimers.length = 0
+  move()
+  for (const delay of [350, 800]) scrollTimers.push(window.setTimeout(move, delay))
+}
 
 const platformColors = { Android: '#65d9a5', IOS: '#b5a0ff', Web: '#5ac8e9' }
 const orderColor = '#8b7cf5'
@@ -47,6 +59,11 @@ const loadDashboard = async () => {
     errorMessage.value = `${error.message}。请确认 Flask 服务已在 5000 端口启动。`
   } finally {
     loading.value = false
+    // 从预测详情页带 #bottom 进来时，等数据与图表撑开页面高度再滚到底部。
+    if (route.hash === '#bottom') {
+      await nextTick()
+      scrollToBottom()
+    }
   }
 }
 
@@ -128,16 +145,17 @@ const forecastOption = computed(() => {
   const forecast = predictionData.forecast
   const labels = [...history.map(item => item.date.slice(5)), ...forecast.map(item => item.date.slice(5))]
   const historyValues = [...history.map(item => item.value), ...Array(forecast.length).fill(null)]
-  const predictedValues = [...Array(history.length - 1).fill(null), history.at(-1).value, ...forecast.map(item => item.value)]
+  // 模型曲线从历史段就画出来：历史段是拟合值，接上未来 7 日预测，两者和实际负荷的贴合度就是模型的置信水平。
+  const modelValues = [...history.map(item => item.fitted ?? null), ...forecast.map(item => item.value)]
   return {
     color: [historyColor, energyColor], tooltip: commonTooltip,
     grid: { left: 48, right: 18, top: 30, bottom: 30 },
-    legend: coloredLegend([['历史负荷', historyColor], ['预测负荷', energyColor]], { top: 0, left: 'center', itemWidth: 12, itemHeight: 7 }),
+    legend: coloredLegend([['历史负荷', historyColor], ['模型预测', energyColor]], { top: 0, left: 'center', itemWidth: 12, itemHeight: 7 }),
     xAxis: { type: 'category', data: labels, ...axisStyle, axisLabel: { interval: 5, color: '#b9cee4', fontSize: 10 } },
     yAxis: { type: 'value', name: '负荷（kWh）', ...axisStyle, nameTextStyle: { color: historyColor, fontWeight: 700 } },
     series: [
       { name: '历史负荷', type: 'line', showSymbol: false, smooth: true, data: historyValues, lineStyle: { width: 2 } },
-      { name: '预测负荷', type: 'line', showSymbol: true, symbolSize: 5, smooth: true, data: predictedValues, lineStyle: { width: 3, type: 'dashed' }, areaStyle: { opacity: 0.08 }, markArea: { silent: true, itemStyle: { color: 'rgba(245,158,11,.05)' }, data: [[{ xAxis: forecast[0].date.slice(5) }, { xAxis: forecast.at(-1).date.slice(5) }]] } },
+      { name: '模型预测', type: 'line', showSymbol: false, smooth: true, data: modelValues, lineStyle: { width: 2, type: 'dashed' }, areaStyle: { opacity: 0.08 }, markArea: { silent: true, itemStyle: { color: 'rgba(245,158,11,.05)' }, data: [[{ xAxis: forecast[0].date.slice(5) }, { xAxis: forecast.at(-1).date.slice(5) }]] } },
     ],
   }
 })
@@ -300,7 +318,10 @@ onMounted(async () => {
   await loadDashboard()
 })
 
-onBeforeUnmount(() => window.clearInterval(clockTimer))
+onBeforeUnmount(() => {
+  window.clearInterval(clockTimer)
+  scrollTimers.forEach(window.clearTimeout)
+})
 </script>
 
 <template>

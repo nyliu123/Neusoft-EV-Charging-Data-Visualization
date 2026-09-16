@@ -221,7 +221,6 @@ df_stations_dwd.createTempView("stations_dwd")
 print(f"DWD层充电站信息表：{df_stations_dwd.count()}条数据")
 
 # DWS层，合并三个表的数据
-# esd 为设备标识、sessionId 为会话标识；下方数值拼接尚缺设备到会话的业务映射。
 df_full_data_dws = spark.sql("""
     SELECT
     n.*,
