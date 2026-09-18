@@ -23,7 +23,7 @@ onMounted(async () => {
 <template>
   <main class="detail-shell">
     <header class="detail-header">
-      <div><router-link to="/" class="back-link">← 返回大屏</router-link><h1>{{ isRevenue ? '费用记录与规则估算' : '用户充电行为' }}</h1><p>{{ isRevenue ? '原始费用与分时估算分项' : '按用户标识去重的行为统计' }}</p></div>
+      <div><router-link to="/" class="back-link">← 返回大屏</router-link><h1>{{ isRevenue ? '费用记录与规则估算' : '用户充电行为' }}</h1></div>
       <nav>
         <router-link to="/details/operations">运营分析</router-link><router-link to="/details/stations">站点详情</router-link>
         <router-link to="/details/users" :class="{ active: !isRevenue }">用户行为</router-link><router-link to="/details/revenue" :class="{ active: isRevenue }">收费分析</router-link>

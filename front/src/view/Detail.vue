@@ -33,7 +33,7 @@ onMounted(async () => {
 <template>
   <main class="detail-shell" :class="{ 'detail-shell--dense': active.key === 'quality' || active.key === 'prediction', 'detail-shell--prediction': active.key === 'prediction' }">
     <header class="detail-header">
-      <div><router-link :to="active.key === 'prediction' ? { path: '/', hash: '#bottom' } : '/'" class="back-link">← 返回大屏</router-link><h1>{{ active.label }}</h1><p>东软汽车充电桩数据分析可视化大屏的指标详情</p></div>
+      <div><router-link :to="active.key === 'prediction' ? { path: '/', hash: '#bottom' } : '/'" class="back-link">← 返回大屏</router-link><h1>{{ active.label }}</h1></div>
       <nav><router-link v-for="section in sections" :key="section.key" :to="`/details/${section.key}`" :class="{ active: active.key === section.key }">{{ section.label }}</router-link></nav>
     </header>
     <div v-if="error" class="detail-error">数据加载失败：{{ error }}</div>

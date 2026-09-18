@@ -10,6 +10,8 @@ from functools import lru_cache
 
 from duration_model import predict_duration as model_predict_duration, train_duration_model
 from duration_features import battery_from_row
+from load_features import WEEKDAY_NAMES
+from load_model import build_load_forecast
 from mysql_store import load_cleaned_tables
 from quality_report import build_quality_report
 from user_business import analyze_user_business
@@ -21,7 +23,6 @@ FACILITY_NAMES = {
     3: "交直流一体桩",
     4: "其他类型",
 }
-WEEKDAY_NAMES = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"]
 
 
 def _float(value, default=0.0):
@@ -56,46 +57,6 @@ def _district(address):
 
 def _round(value, digits=2):
     return round(float(value), digits)
-
-
-def _solve(matrix, vector):
-    """高斯消元求解小型线性方程组。"""
-    size = len(vector)
-    augmented = [list(matrix[i]) + [vector[i]] for i in range(size)]
-    for column in range(size):
-        pivot = max(range(column, size), key=lambda row: abs(augmented[row][column]))
-        augmented[column], augmented[pivot] = augmented[pivot], augmented[column]
-        divisor = augmented[column][column]
-        if abs(divisor) < 1e-12:
-            continue
-        augmented[column] = [item / divisor for item in augmented[column]]
-        for row in range(size):
-            if row == column:
-                continue
-            factor = augmented[row][column]
-            augmented[row] = [
-                augmented[row][index] - factor * augmented[column][index]
-                for index in range(size + 1)
-            ]
-    return [augmented[index][-1] for index in range(size)]
-
-
-def _ridge_fit(features, targets, penalty=0.15):
-    width = len(features[0])
-    gram = [[0.0] * width for _ in range(width)]
-    rhs = [0.0] * width
-    for row, target in zip(features, targets):
-        for left in range(width):
-            rhs[left] += row[left] * target
-            for right in range(width):
-                gram[left][right] += row[left] * row[right]
-    for index in range(1, width):
-        gram[index][index] += penalty
-    return _solve(gram, rhs)
-
-
-def _dot(left, right):
-    return sum(a * b for a, b in zip(left, right))
 
 
 @dataclass
@@ -191,110 +152,6 @@ def get_store():
     store.invalid_kwh_count = _int(quality.get("invalid_kwh"))
     store.invalid_duration_count = _int(quality.get("invalid_duration"))
     return store
-
-
-def _station_window(dates, stations_by_day, index):
-    """目标日之前 7 天内出现过的站点数，只用已知数据。
-
-    预测期的 index 会越过数据末尾，这里夹到最后一个已知日，7 天预测共用同一个值。
-    """
-    end = min(index, len(dates))
-    start = max(0, end - 7)
-    seen = set()
-    for day in dates[start:end]:
-        seen |= stations_by_day[day]
-    return float(len(seen))
-
-
-def _load_feature_row(values, stations, index, trend, weekday):
-    """一行特征：趋势、周滞后、近 7 天活跃站点数，以及星期哑变量和趋势×星期的交互。
-
-    lag7 / lag14 是以周为单位变化的量：只有趋势时工作日上行了、周末没动，
-    公共趋势会把周末顶高、把工作日压低，周内振幅被压平（回测只有 140，实际约 180）。
-    站点数解释的是量级：活跃站点从 38 涨到 92，日负荷同步从 14 涨到 151。
-    """
-    lag7 = values[index - 7] if index >= 7 else 0.0
-    lag14 = values[index - 14] if index >= 14 else 0.0
-    return (
-        [1.0, trend, lag7, lag14, stations[index]]
-        + [1.0 if weekday == wd else 0.0 for wd in range(6)]
-        + [trend if weekday == wd else 0.0 for wd in range(6)]
-    )
-
-
-def _backtest_rmse(dates, values, stations, horizon=7, span=120):
-    """滚动回测的样本外 RMSE：每次只用截止日前的数据拟合，再预测之后 horizon 天。
-
-    误差带要用这个值。样本内 RMSE 是拿同一批数据既拟合又打分，偏乐观，
-    会把误差范围画得比实际窄、把置信度说得比实际好。
-    """
-    penalty = 0.15
-    errors = []
-    for cut in range(max(28, len(dates) - span), len(dates) - horizon + 1):
-        train = values[:cut]
-        scale = max(cut - 1, 1)
-        features = [_load_feature_row(train, stations, index, index / scale, day.weekday())
-                    for index, day in enumerate(dates[:cut])]
-        coefficients = _ridge_fit(features, train, penalty=penalty)
-        for step, day in enumerate(dates[cut:cut + horizon], start=1):
-            index = cut + step - 1
-            trend = index / scale
-            predicted = max(_dot(_load_feature_row(values, stations, index, trend, day.weekday()), coefficients), 0.0)
-            errors.append(predicted - values[index])
-    if not errors:
-        return 0.0
-    return math.sqrt(sum(error * error for error in errors) / len(errors))
-
-
-def _load_forecast(orders):
-    daily = defaultdict(float)
-    stations_by_day = defaultdict(set)
-    for order in orders:
-        day = order["created"].date()
-        daily[day] += order["kwh"]
-        stations_by_day[day].add(order["stationId"])
-    first_day, last_day = min(daily), max(daily)
-    dates = []
-    current = first_day
-    while current <= last_day:
-        dates.append(current)
-        current += timedelta(days=1)
-    values = [daily.get(day, 0.0) for day in dates]
-    scale = max(len(dates) - 1, 1)
-    stations = [_station_window(dates, stations_by_day, index) for index in range(len(dates) + 7)]
-    features = [_load_feature_row(values, stations, index, index / scale, day.weekday())
-                for index, day in enumerate(dates)]
-    coefficients = _ridge_fit(features, values, penalty=0.15)
-    fitted = [_dot(row, coefficients) for row in features]
-    in_sample_rmse = math.sqrt(sum((a - p) ** 2 for a, p in zip(values, fitted)) / len(values))
-    # 误差带用滚动回测的样本外误差，而不是上面这个偏乐观的样本内数字。
-    rmse = _backtest_rmse(dates, values, stations)
-    forecast = []
-    for step in range(1, 8):
-        target = last_day + timedelta(days=step)
-        index = len(dates) - 1 + step
-        row = _load_feature_row(values, stations, index, index / scale, target.weekday())
-        predicted = max(_dot(row, coefficients), 0.0)
-        forecast.append({
-            "date": target.isoformat(),
-            "weekday": WEEKDAY_NAMES[target.weekday()],
-            "value": _round(predicted),
-            "lower": _round(max(predicted - rmse, 0.0)),
-            "upper": _round(predicted + rmse),
-        })
-    # fitted 一并返回，前端把模型在历史日期上的预测和实际值画在一起，直观看出模型贴合程度。
-    history = [
-        {"date": day.isoformat(), "value": _round(value), "fitted": _round(fit)}
-        for day, value, fit in zip(dates[-30:], values[-30:], fitted[-30:])
-    ]
-    return {
-        "history": history,
-        "forecast": forecast,
-        "rmse": _round(rmse),
-        "inSampleRmse": _round(in_sample_rmse),
-        "method": "趋势 × 星期 + 周滞后 + 站点规模岭回归",
-        "trainingDays": len(dates),
-    }
 
 
 def build_dashboard():
@@ -443,7 +300,7 @@ def build_dashboard():
             "avgMaxTemperature": _round(sum(max_temperatures) / len(max_temperatures), 1),
             "avgCurrent": _round(sum(currents) / len(currents), 1),
         },
-        "loadPrediction": _load_forecast(orders),
+        "loadPrediction": build_load_forecast(orders),
         "durationModel": store.duration_metrics,
         "userBehavior": user_business["users"],
         "revenue": user_business["revenue"],
